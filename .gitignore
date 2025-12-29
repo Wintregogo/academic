@@ -1,0 +1,5 @@
+database.zip
+database/.*
+__pycache__/.*
+report.md
+pdfs/.*
