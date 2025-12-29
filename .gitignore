@@ -3,3 +3,4 @@ database/.*
 __pycache__/.*
 report.md
 pdfs/.*
+export/.*

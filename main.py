@@ -7,6 +7,7 @@ from filter import filter_papers
 from evaluator import compute_insight_score, llm_evaluate, load_prompt, extract_breakthrough
 from reporter import generate_report    
 from utils import download_pdf
+from exporter import export_to_csv, export_to_json
 
 def main():
     with open("config.yaml") as f:
@@ -83,6 +84,12 @@ def main():
     # 生成报告
     generate_report(top_papers, config, config["output"]["report_path"])
     print(f"Report saved to {config['output']['report_path']}")
+
+    # 导出 CSV 和 JSON
+    export_to_csv(top_papers, config["output"]["csv_path"])
+    export_to_json(top_papers, config["output"]["json_path"])
+    print(f"CSV exported to {config['output']['csv_path']}")
+    print(f"JSON exported to {config['output']['json_path']}")
 
 if __name__ == "__main__":
     main()

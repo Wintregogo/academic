@@ -1,3 +1,4 @@
+import os
 from typing import List, Dict
 from jinja2 import Template
 
@@ -34,5 +35,9 @@ def generate_report(papers: List[Dict], config: Dict, output_path: str):
         top_k=config["query"]["top_k"],
         papers=papers
     )
+
+    if not os.path.exists(os.path.dirname(output_path)):
+        os.makedirs(os.path.dirname(output_path))
+    print(f"Generating report to {output_path}")
     with open(output_path, "w") as f:
         f.write(report)
