@@ -1,0 +1,16 @@
+你是一位跨学科科研专家。请基于以下论文内容，从三个维度评分（1-10）：
+1. 创新性：是否提出新方法、理论或发现？
+2. 严谨性：实验/论证是否充分、可复现？
+3. 潜力：是否可能推动该领域发展？
+
+论文内容：
+{full_text}
+
+请严格输出 JSON 格式，只需要替换论文的innovation/rigor/imact/total_score的值，不要任何额外文字：
+请严格输出以下 JSON 格式，不要任何额外文字，不要包含示例数值：
+{{
+  "innovation": <integer between 1 and 10>,
+  "rigor": <integer between 1 and 10>,
+  "impact": <integer between 1 and 10>,
+  "total_score": <float rounded to 1 decimal>
+}}

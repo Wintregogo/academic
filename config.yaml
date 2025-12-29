@@ -1,0 +1,17 @@
+query:
+  keywords: ["large language models", "reasoning"]
+  categories: ["cs.CL", "cs.AI"]
+  time_window_days: 7
+  top_k: 5
+
+llm:
+  provider: "qwen"  # or "openai"
+  model: "qwen-turbo"
+  api_key: "sk-232ac2f6dd8e472fa28a3dccde559f49"
+
+parser:
+  use_grobid: false
+  grobid_url: "http://localhost:8070"
+
+output:
+  report_path: "report.md"
