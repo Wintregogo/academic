@@ -53,8 +53,43 @@ def parse_json_response(content: str) -> Dict:
     except Exception as e:
         return {"error": f"JSON parse failed: {str(e)}", "raw": content}
 
+def load_cached_evaluation(paper_id: str) -> Dict:
+    cache_file = f"cache/evaluate_{paper_id}.json"
+    if os.path.exists(cache_file):
+        with open(cache_file, "r") as f:
+            data = json.load(f)
+            return data
+    return {}
 
-def llm_evaluate(text: str, prompt_template: str, llm_config: Dict) -> Dict:
+def cache_evaluation(paper_id: str, data: Dict):
+    cache_file = f"cache/evaluate_{paper_id}.json"
+
+    if os.path.exists(cache_file):
+        with open(cache_file, "r") as f:
+            cached = json.load(f)
+            cached.update(data)
+    else:
+        cached = data
+    
+    if not os.path.exists(os.path.dirname(cache_file)):
+        os.makedirs(os.path.dirname(cache_file))
+    with open(cache_file, "w") as f:
+        json.dump(cached, f)    
+
+def llm_evaluate(paper_id:str, text: str, prompt_template: str, llm_config: Dict) -> Dict:
+    # try to load evaluate result from cache
+    cached = load_cached_evaluation(paper_id)
+            # check if evaluate result is cached (if "innovation" exists)
+    if cached is not None and "innovation" in cached:
+        return {
+            "innovation": cached.get("innovation", 0),
+            "rigor": cached.get("rigor", 0),
+            "impact": cached.get("impact", 0),
+            "total_score": cached.get("total_score", 0),
+            "raw_response": cached.get("raw_response", "")
+        }
+
+    # if not, evaluate and save to cache
     full_prompt = prompt_template.format(full_text=text)
     content = call_llm(
         full_prompt,
@@ -69,6 +104,15 @@ def llm_evaluate(text: str, prompt_template: str, llm_config: Dict) -> Dict:
     impact = data.get("impact", 0)
     total_score = round((innovation + rigor + impact) / 3, 2)
 
+    # save to cache
+    cache_evaluation(paper_id, {
+            "innovation": innovation,
+            "rigor": rigor,
+            "impact": impact,
+            "total_score": total_score,
+            "raw_response": content
+        })
+
     return {
         "innovation": innovation,
         "rigor": rigor,
@@ -78,7 +122,16 @@ def llm_evaluate(text: str, prompt_template: str, llm_config: Dict) -> Dict:
     }
 
 
-def extract_breakthrough(abstract: str, full_text: str, llm_config: Dict) -> Dict:
+def extract_breakthrough(paper_id:str, abstract: str, full_text: str, llm_config: Dict) -> Dict:
+    cached = load_cached_evaluation(paper_id)
+            # check if evaluate result is cached (if "breakthrough" exists)
+    if cached is not None and "breakthrough" in cached:
+        return {
+            "abstract": cached.get("abstract", ""),
+            "breakthrough": cached.get("breakthrough"),
+            "language": cached.get("language")  # 记录语言，便于后续分析
+        }
+
     # 自动检测语言
     lang = detect_language(abstract)
     prompt_file = f"prompts/breakthrough_{lang}.txt"
@@ -100,6 +153,12 @@ def extract_breakthrough(abstract: str, full_text: str, llm_config: Dict) -> Dic
     result = parse_json_response(content)
 
     if "abstract" in result and "breakthrough" in result:
+        cache_evaluation(paper_id, {
+            "abstract": result["abstract"],
+            "breakthrough": result["breakthrough"],
+            "language": lang  # 记录语言，便于后续分析
+        })
+
         return {
             "abstract": result["abstract"],
             "breakthrough": result["breakthrough"],

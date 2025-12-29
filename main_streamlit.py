@@ -7,6 +7,7 @@ from evaluator import llm_evaluate, extract_breakthrough, compute_insight_score,
 from reporter import generate_report
 from author_fetcher import enrich_paper_with_authors
 from utils import download_pdf
+from exporter import export_to_csv, export_to_json
 
 def run_analysis(config: dict):
     query = config["query"]
@@ -31,6 +32,7 @@ def run_analysis(config: dict):
     parser = PDFParser(use_grobid=parser_cfg["use_grobid"], grobid_url=parser_cfg["grobid_url"])
 
     for i, paper in enumerate(papers[:15]):  # 控制数量避免超时
+        paper_id = f"arvix_{paper['id']}"
         # 下载 PDF
         pdf_path = f"pdfs/{paper['id']}.pdf"
         os.makedirs("pdfs", exist_ok=True)
@@ -40,9 +42,9 @@ def run_analysis(config: dict):
         parsed = parser.parse(pdf_path)
         full_text = parsed["full_text"]
 
-        # LLM 评分
-        eval_result = llm_evaluate(full_text, prompt_tmpl, llm_cfg)
-        insight = extract_breakthrough(paper["summary"], full_text, llm_cfg)
+        # LLM 评分 + 亮点提取
+        eval_result = llm_evaluate(paper_id, full_text, prompt_tmpl, llm_cfg)
+        insight = extract_breakthrough(paper_id, paper["summary"], full_text, llm_cfg)
 
         # 计算加权分
         insight_bonus = compute_insight_score(insight["breakthrough"], insight["language"])
@@ -68,5 +70,7 @@ def run_analysis(config: dict):
 
     # 生成 Markdown 报告（可选）
     generate_report(top_papers, config, config["output"]["report_path"])
+    export_to_csv(top_papers, config["output"]["csv_path"])
+    export_to_json(top_papers, config["output"]["json_path"])    
 
     return top_papers

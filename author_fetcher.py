@@ -47,10 +47,11 @@ def _fetch_from_openalex(name: str) -> Optional[Dict]:
             OPENALEX_AUTHORS_SEARCH,
             params={
                 "filter": f"display_name.search:{name}",
-                "select": "display_name,works_count,cited_by_count,h_index,affiliations"
+                "select": "display_name,works_count,cited_by_count,summary_stats,affiliations"
             },
             timeout=5
         )
+       
         if resp.status_code == 200:
             data = resp.json()
             results = data.get("results", [])
@@ -63,10 +64,11 @@ def _fetch_from_openalex(name: str) -> Optional[Dict]:
                     if inst and inst.get("display_name"):
                         affs.append(inst["display_name"])
 
+                h_index = author.get("summary_stats", {}).get("h_index")
                 return {
                     "source": "openalex",
                     "name": author.get("display_name"),
-                    "h_index": author.get("h_index"),
+                    "h_index": h_index,
                     "paper_count": author.get("works_count"),
                     "citation_count": author.get("cited_by_count"),
                     "affiliations": affs
