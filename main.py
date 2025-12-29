@@ -5,7 +5,7 @@ from fetcher import fetch_papers
 from parser import PDFParser
 from filter import filter_papers
 from evaluator import llm_evaluate, load_prompt, extract_breakthrough
-from reporter import generate_report
+from reporter import generate_report    
 from utils import download_pdf
 
 def main():
@@ -47,9 +47,19 @@ def main():
         eval_result = llm_evaluate(full_text, prompt_tmpl, llm_cfg)
         paper.update(eval_result)
         
+        insight = extract_breakthrough(
+            abstract=paper["summary"],      # 原始摘要
+            full_text=full_text,            # 解析后的全文
+            llm_config=llm_cfg
+        )
         # 抽取亮点（简化：用摘要代替）
-        paper["abstract"] = paper["summary"]
-        paper["breakthrough"] = "（待实现：调用 LLM 提取突破点）"
+        paper["abstract"] = insight["abstract"]
+        paper["breakthrough"] = insight["breakthrough"]
+        
+        print(" - total_score:", paper["total_score"])
+        print(" - summary:", paper["summary"])
+        print(" - abstract:", paper["abstract"])
+        print(" - breakthrough:", paper["breakthrough"])
         
         scored_papers.append(paper)
 
