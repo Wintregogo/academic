@@ -4,6 +4,11 @@ query:
   time_window_days: 7
   top_k: 5
 
+features:
+  author_info:
+    enabled: true
+    sources: ["openalex"]  # 可选: semantic_scholar, openalex
+
 llm:
   provider: "qwen"  # or "openai"
   model: "qwen-turbo"
