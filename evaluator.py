@@ -3,6 +3,16 @@ import os
 import json
 from typing import Dict, Optional
 from dashscope import Generation  # Qwen
+from langdetect import detect, LangDetectException
+
+def detect_language(text: str) -> str:
+    try:
+        lang = detect(text)
+        return "zh" if lang.startswith("zh") else "en"
+    except LangDetectException:
+        return "en"  # 默认英文
+    except Exception as e:
+        return "en"
 
 def load_prompt(template_name: str = "default") -> str:
     path = f"prompts/{template_name}.txt"
@@ -69,48 +79,61 @@ def llm_evaluate(text: str, prompt_template: str, llm_config: Dict) -> Dict:
 
 
 def extract_breakthrough(abstract: str, full_text: str, llm_config: Dict) -> Dict:
-    """
-    提取论文亮点
-    :param abstract: 原始摘要（来自 arXiv）
-    :param full_text: 论文全文（截断后）
-    :param llm_config: LLM 配置
-    :return: {"abstract": "...", "breakthrough": "..."}
-    """
-    # 加载 breakthrough prompt
-    prompt_path = "prompts/breakthrough.txt"
-    if not os.path.exists(prompt_path):
-        # fallback to default logic
-        return {
-            "abstract": abstract,
-            "breakthrough": "（未配置 breakthrough prompt，使用摘要代替）"
-        }
+    # 自动检测语言
+    lang = detect_language(abstract)
+    prompt_file = f"prompts/breakthrough_{lang}.txt"
+    
+    if not os.path.exists(prompt_file):
+        prompt_file = "prompts/breakthrough_en.txt"  # fallback
 
-    with open(prompt_path, "r", encoding="utf-8") as f:
+    with open(prompt_file, "r", encoding="utf-8") as f:
         template = f.read()
 
-    # 构建 prompt（注意转义）
     full_prompt = template.format(abstract=abstract, full_text=full_text)
 
-    # 调用 LLM
     content = call_llm(
         full_prompt,
         llm_config,
         response_format={"type": "json_object"}
     )
 
-    # 解析响应
     result = parse_json_response(content)
 
-    # 如果解析成功且包含所需字段
     if "abstract" in result and "breakthrough" in result:
         return {
             "abstract": result["abstract"],
-            "breakthrough": result["breakthrough"]
+            "breakthrough": result["breakthrough"],
+            "language": lang  # 记录语言，便于后续分析
         }
     else:
-        # 回退方案：用摘要 + 错误提示
         return {
             "abstract": abstract,
-            "breakthrough": f"（LLM 提取失败，raw: {content[:100]}...）"
+            "breakthrough": f"（LLM 提取失败）",
+            "language": lang
         }
 
+def compute_insight_score(breakthrough: str, language: str = "en") -> float:
+    """
+    基于关键词和长度计算亮点质量分（0~2.0），作为 total_score 的加成
+    """
+    text = breakthrough.lower()
+    score = 0.0
+
+    if language == "zh":
+        keywords = ["首次", "突破", "显著", "创新", "解决", "提出", "新方法", "性能提升"]
+        for kw in keywords:
+            if kw in text:
+                score += 0.3
+        # 长度适中加分（30~100 字）
+        if 30 <= len(text) <= 100:
+            score += 0.5
+    else:
+        keywords = ["first", "novel", "breakthrough", "significant", "propose", "achieve", "solve", "improve"]
+        for kw in keywords:
+            if kw in text:
+                score += 0.3
+        # length: 50~150 chars
+        if 50 <= len(text) <= 150:
+            score += 0.5
+
+    return min(score, 2.0)  # 最多加 2 分

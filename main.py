@@ -4,7 +4,7 @@ import json
 from fetcher import fetch_papers
 from parser import PDFParser
 from filter import filter_papers
-from evaluator import llm_evaluate, load_prompt, extract_breakthrough
+from evaluator import compute_insight_score, llm_evaluate, load_prompt, extract_breakthrough
 from reporter import generate_report    
 from utils import download_pdf
 
@@ -45,22 +45,35 @@ def main():
         
         # 评分
         eval_result = llm_evaluate(full_text, prompt_tmpl, llm_cfg)
-        paper.update(eval_result)
-        
         insight = extract_breakthrough(
             abstract=paper["summary"],      # 原始摘要
             full_text=full_text,            # 解析后的全文
             llm_config=llm_cfg
         )
         # 抽取亮点（简化：用摘要代替）
-        paper["abstract"] = insight["abstract"]
-        paper["breakthrough"] = insight["breakthrough"]
+        #paper["abstract"] = insight["abstract"]
+        #paper["breakthrough"] = insight["breakthrough"]
+        insight_bonus = compute_insight_score(insight["breakthrough"], insight["language"])
+        final_score = eval_result["total_score"] + insight_bonus
+        #paper["total_score"] = final_score
+        #paper.update(eval_result)
         
-        print(" - total_score:", paper["total_score"])
-        print(" - summary:", paper["summary"])
+        paper.update({
+            "abstract": insight["abstract"],
+            "breakthrough": insight["breakthrough"],
+            "language": insight["language"],
+            "insight_bonus": round(insight_bonus, 2),
+            "final_score": round(final_score, 2)  # ← 用这个排序！
+        })
+        print(" - eval_score:", eval_result["total_score"])
+        print(" - insight_bonus:", insight_bonus)
+        #print(" - total_score:", paper["total_score"])
+        #print(" - summary:", paper["summary"])
         print(" - abstract:", paper["abstract"])
         print(" - breakthrough:", paper["breakthrough"])
-        
+        print(" - language:", paper["language"])
+        print(" - insight_bonus:", paper["insight_bonus"])
+        print(" - final_score:", paper["final_score"])
         scored_papers.append(paper)
 
     # 排序
