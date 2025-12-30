@@ -4,7 +4,7 @@ import yaml
 import os
 from datetime import datetime
 from utils import load_config  # ← 新增导入
-from main_streamlit import run_analysis
+from main_streamlit import run_analysis, streaming_run_analysis
 
 # === 1. 加载默认配置 ===
 DEFAULT_CONFIG = load_config("config.yaml")
@@ -113,48 +113,65 @@ if run_btn:
             }
         }
 
-        with st.spinner("正在分析论文...（可能需要几分钟）"):
+        # === 创建动态更新区域 ===
+        status_container = st.empty()
+        results_container = st.empty()
+        download_container = st.empty()
+
+        all_results = []
+
+        with st.spinner("正在分析论文..."):
             try:
-                results = run_analysis(config)
-                st.success(f"✅ 分析完成！共处理 {len(results)} 篇论文")
+                # 流式处理
+                for partial_results in streaming_run_analysis(config):
+                    all_results = partial_results  # 保留最新状态
 
-                # 显示结果（略，同之前）
-                for i, paper in enumerate(results):
-                    with st.expander(f"{i+1}. {paper['title']}", expanded=(i == 0)):
-                        col1, col2 = st.columns([2, 1])
-                        with col1:
-                            st.markdown(f"**发表时间**: {paper['published'][:10]}")
-                            st.markdown(f"**分数**: `{paper.get('final_score', 0)}` (基础: `{paper.get('total_score', 0)}`, 亮点加成: `{paper.get('insight_bonus', 0)}`)")
-                            st.markdown(f"**语言**: {'中文' if paper.get('language') == 'zh' else 'English'}")
-                            st.markdown(f"[查看全文](https://arxiv.org/abs/{paper['id']}) | [PDF](https://arxiv.org/pdf/{paper['id']})")
-                            
-                            if paper.get("authors_info"):
-                                st.markdown("**作者信息**:")
-                                for author in paper["authors_info"]:
-                                    name = author.get("name", "N/A")
-                                    hindex = author.get("h_index", "N/A")
-                                    org = author.get("affiliations", ["N/A"])[0] if author.get("affiliations") else "N/A"
-                                    source = author.get("source_used", "")
-                                    st.caption(f"- {name} | H-index: {hindex} | {org} ({source})")
+                    # 更新状态
+                    status_container.info(f"⏳ 已分析 {len(partial_results)} 篇论文，正在排序...")
 
-                            st.markdown("**摘要**:")
-                            st.write(paper["abstract"])
-                            st.markdown("**💡 亮点**:")
-                            st.write(paper["breakthrough"])
+                    # 清空并重绘结果（只显示当前 top_k）
+                    top_k = config["query"]["top_k"]
+                    display_papers = sorted(partial_results, key=lambda x: x.get("final_score", 0), reverse=True)[:top_k]
 
-                        with col2:
-                            st.metric("创新性", paper.get("innovation", 0))
-                            st.metric("严谨性", paper.get("rigor", 0))
-                            st.metric("影响力", paper.get("impact", 0))
+                    results_container.empty()  # 清空旧内容
+                    with results_container.container():
+                        for i, paper in enumerate(display_papers):
+                            with st.expander(f"{i+1}. {paper['title']}", expanded=(i == 0)):
+                                col1, col2 = st.columns([2, 1])
+                                with col1:
+                                    st.markdown(f"**发表时间**: {paper['published'][:10]}")
+                                    st.markdown(f"**分数**: `{paper.get('final_score', 0)}` (基础: `{paper.get('total_score', 0)}`, 亮点: `{paper.get('insight_bonus', 0)}`)")
+                                    st.markdown(f"**语言**: {'中文' if paper.get('language') == 'zh' else 'English'}")
+                                    st.markdown(f"[查看全文](https://arxiv.org/abs/{paper['id']}) | [PDF](https://arxiv.org/pdf/{paper['id']})")
+                                    
+                                    if paper.get("authors_info"):
+                                        st.markdown("**作者信息**:")
+                                        for author in paper["authors_info"]:
+                                            name = author.get("name", "N/A")
+                                            hindex = author.get("h_index", "N/A")
+                                            org = author.get("affiliations", ["N/A"])[0] if author.get("affiliations") else "N/A"
+                                            source = author.get("source_used", "")
+                                            st.caption(f"- {name} | H-index: {hindex} | {org} ({source})")
 
-                # 下载 CSV
+                                    st.markdown("**摘要**:")
+                                    st.write(paper["abstract"])
+                                    st.markdown("**💡 亮点**:")
+                                    st.write(paper["breakthrough"])
+
+                                with col2:
+                                    st.metric("创新性", paper.get("innovation", 0))
+                                    st.metric("严谨性", paper.get("rigor", 0))
+                                    st.metric("影响力", paper.get("impact", 0))
+
+                # === 全部完成后 ===
+                status_container.success(f"✅ 分析完成！共处理 {len(all_results)} 篇论文")
+
+                # 提供下载
                 import pandas as pd
-                df = pd.DataFrame(results)
+                df = pd.DataFrame(all_results)
                 csv = df.to_csv(index=False).encode('utf-8-sig')
-                st.download_button("📥 下载 CSV", csv, "arxiv_insight.csv", "text/csv")
+                download_container.download_button("📥 下载完整 CSV", csv, "arxiv_insight.csv", "text/csv")
 
             except Exception as e:
-                st.error(f"分析出错: {str(e)}")
+                status_container.error(f"分析出错: {str(e)}")
                 st.exception(e)
-else:
-    st.info("点击左侧「开始分析」按钮以启动分析流程。")

@@ -11,7 +11,7 @@ features:
 
 llm:
   provider: "qwen"  # or "openai"
-  model: "qwen-turbo"
+  model: "qwen-plus"
   api_key: "sk-232ac2f6dd8e472fa28a3dccde559f49"
 
 parser:
