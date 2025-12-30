@@ -20,9 +20,13 @@ class PDFParser:
                     text = soup.get_text()
                     return {"full_text": text[:12000]}  # 截断
             except Exception as e:
-                print(f"Grobid failed: {e}")
+                print(f"Grobid failed to open PDF {pdf_path}: {e}")
 
         # fallback to pdfplumber
-        with pdfplumber.open(pdf_path) as pdf:
-            text = "\n".join(page.extract_text() or "" for page in pdf.pages)
-        return {"full_text": text[:12000]}
+        try:
+            with pdfplumber.open(pdf_path) as pdf:
+                text = "\n".join(page.extract_text() or "" for page in pdf.pages)
+            return {"full_text": text[:12000]}
+        except Exception as e:
+            print(f"Failed to open PDF {pdf_path}: {e}")
+            return None

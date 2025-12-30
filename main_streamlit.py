@@ -40,6 +40,8 @@ def run_analysis(config: dict):
 
         # 解析全文
         parsed = parser.parse(pdf_path)
+        if parsed is None:
+            continue
         full_text = parsed["full_text"]
 
         # LLM 评分 + 亮点提取
