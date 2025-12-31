@@ -71,7 +71,9 @@ with st.sidebar:
 
     # 解析器
     parser_cfg = DEFAULT_CONFIG.get("parser", {})
-    use_grobid = st.checkbox("使用 Grobid 解析 PDF", value=parser_cfg.get("use_grobid", False))
+    use_grobid = parser_cfg.get("use_grobid", False)
+    grobid_url = parser_cfg.get("grobid_url", "http://localhost:8070")
+    use_grobid = st.checkbox("使用 Grobid 解析 PDF", value=use_grobid)
 
     # LLM 设置
     llm_cfg = DEFAULT_CONFIG.get("llm", {})
@@ -112,7 +114,7 @@ if run_btn:
             },
             "parser": {
                 "use_grobid": use_grobid,
-                "grobid_url": "http://localhost:8070"
+                "grobid_url": grobid_url
             },
             "output": {
                 "report_path": report_path,

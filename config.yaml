@@ -15,7 +15,7 @@ llm:
   api_key: "sk-232ac2f6dd8e472fa28a3dccde559f49"
 
 parser:
-  use_grobid: false
+  use_grobid: true
   grobid_url: "http://localhost:8070"
 
 output:
