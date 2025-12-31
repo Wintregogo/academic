@@ -183,10 +183,7 @@ if run_btn:
                             # 🔧 修复：f-string 中不能直接用双引号，改用单引号或转义
                             st.caption(
                                 f"发表时间: {paper['published'][:10]} | "
-                                f"分数: {paper.get('final_score', 0):.2f} "
-                                f"(创新性: {paper.get('innovation', 0):.2f}, "
-                                f"严谨性: {paper.get('rigor', 0):.2f}, "
-                                f"影响力: {paper.get('impact', 0):.2f})"
+                                f"分数: {paper.get('final_score', 0):.2f}"
                             )
 
             except Exception as e:
@@ -197,6 +194,8 @@ if run_btn:
         # 保存结果到 session state
         if all_results:
             st.session_state.analysis_results = all_results
+
+        results_container.empty()
 
 
 # ======================
