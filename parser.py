@@ -18,7 +18,7 @@ class PDFParser:
                     from bs4 import BeautifulSoup
                     soup = BeautifulSoup(resp.text, "xml")
                     text = soup.get_text()
-                    return {"full_text": text[:12000]}  # 截断
+                    return {"full_text": text[:12000]}, ""  # 截断
             except Exception as e:
                 print(f"Grobid failed to open PDF {pdf_path}: {e}")
 
@@ -26,7 +26,8 @@ class PDFParser:
         try:
             with pdfplumber.open(pdf_path) as pdf:
                 text = "\n".join(page.extract_text() or "" for page in pdf.pages)
-            return {"full_text": text[:12000]}
+            return {"full_text": text[:12000]}, ""
         except Exception as e:
-            print(f"Failed to open PDF {pdf_path}: {e}")
-            return None
+            error = f"Failed to open PDF {os.path.basename(pdf_path)}: {e}"
+            print(error)
+            return None, error

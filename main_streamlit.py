@@ -1,5 +1,6 @@
 # main_streamlit.py
 import os
+from exporter import export_to_csv, export_to_json
 from fetcher import fetch_papers
 from parser import PDFParser
 from filter import filter_papers
@@ -24,10 +25,12 @@ def streaming_run_analysis(config: dict):
         days=query["time_window_days"]
     )
     papers = filter_papers(papers, query["keywords"])
-    papers = papers[:min(15, len(papers))]  # 控制最大数量
+    #papers = papers[:min(15, len(papers))]  # 控制最大数量
 
-    if not papers:
-        yield []
+    total_papers = len(papers)
+
+    if total_papers == 0:
+        yield [], 0
         return
 
     # Step 2: 初始化
@@ -46,15 +49,25 @@ def streaming_run_analysis(config: dict):
             download_pdf(paper["pdf_url"], pdf_path)
 
             # 解析全文
-            parsed = parser.parse(pdf_path)
+            parsed, errmsg = parser.parse(pdf_path)
             if parsed is None:
-                continue
-            
-            full_text = parsed["full_text"]
-
-            # LLM 评分
-            eval_result = llm_evaluate(paper_id, full_text, prompt_tmpl, llm_cfg)
-            insight = extract_breakthrough(paper_id, paper["summary"], full_text, llm_cfg)
+                eval_result = {
+                    "innovation": 0,
+                    "rigor": 0,
+                    "impact": 0,
+                    "total_score": 0
+                }
+                insight = {
+                    "abstract": paper["summary"],
+                    "breakthrough": "",
+                    "language": "na"
+                }
+                paper["error"] = f"Failed to parse paper, error: {errmsg} "
+            else:
+                # LLM 评分
+                full_text = parsed["full_text"]
+                eval_result = llm_evaluate(paper_id, full_text, prompt_tmpl, llm_cfg)
+                insight = extract_breakthrough(paper_id, paper["summary"], full_text, llm_cfg)
 
             # 计算加权分
             insight_bonus = compute_insight_score(insight["breakthrough"], insight["language"])
@@ -78,7 +91,7 @@ def streaming_run_analysis(config: dict):
             scored_papers.sort(key=lambda x: x.get("final_score", 0), reverse=True)
 
             # Yield 当前完整列表（用于前端刷新）
-            yield list(scored_papers)  # 返回副本，避免引用问题
+            yield list(scored_papers), total_papers  # 返回副本，避免引用问题
 
         except Exception as e:
             # 即使某篇失败，也继续
