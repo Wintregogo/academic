@@ -28,13 +28,98 @@
 
 ## 🧩 2. 子模块详解与关键技术点
 
-| 子模块 | 功能描述 | 关键技术点 | 改进点 |
-|--------|--------|-----------|-------|
-| **ArXiv Fetcher** | 从 arXiv API 获取最新/指定论文元数据 | - 使用 `arxiv` Python 包<br>- 支持按关键词、作者、时间范围查询<br>- 自动下载 PDF 到本地缓存目录 | • **语义搜索**：引入 sciBERT/SPECTER 生成论文向量表示<br>• **混合检索**：结合关键词匹配和语义相似度<br>• **自适应查询**：基于用户兴趣自动生成扩展查询<br>• **跨平台扩展**：支持 bioRxiv、medRxiv 等其他预印本平台 |
-| **PDF Parser** | 从 PDF 中提取可读文本 | - **双后端策略**：<br>  • 主路径：调用 Grobid REST API<br>  • 备用路径：`pdfplumber` 提取纯文本<br>- **智能缓存**：<br>  • 基于文件指纹的缓存机制<br>• 多层级结果存储（XML/JSON） | • **结构化增强**：提取图表、公式、算法伪代码<br>• **段落级语义分析**：识别方法、实验、结论等核心段落<br>• **OCR容错**：处理扫描版PDF文档<br>• **多模态融合**：整合文本、表格、图表信息 |
-| **LLM Analyzer** | 调用大模型生成结构化洞察 | - 使用 Jinja2 模板构建 prompt<br>- 支持多后端（Qwen, OpenAI, Ollama）<br>- 输出强制 JSON Schema<br>- 自动截断长文本以控制成本 | • **多维度评分**：科学价值(30%) + 实用价值(25%) + 影响力(20%) + 可靠性(15%) + 可读性(10%)<br>• **上下文感知**：根据用户类型动态调整评分权重<br>• **Chain-of-Thought**：分步骤推理提升分析深度<br>• **Ensemble评价**：多模型集成降低偏差 |
-| **Cache Manager** | 统一管理各类缓存（PDF、解析结果、LLM 响应） | - 所有缓存存放于 `./cache/` 目录<br>- 缓存键包含文件指纹，确保一致性<br>- 可选：未来支持 LRU 或 TTL 过期策略 | • **智能清理**：基于访问频率的LRU策略<br>• **分布式缓存**：支持Redis集群扩展<br>• **版本管理**：缓存数据版本化和渐进式更新<br>• **一致性保障**：实时同步和冲突解决机制 |
-| **Web UI (Streamlit)** | 提供交互式分析界面 | - 动态加载论文卡片<br>- 支持“使用 Grobid”开关<br>- 实时显示 LLM 分析结果<br>- 错误友好提示 | • **个性化推荐**：基于用户行为的多模态布局<br>• **渐进式展示**：分层信息展现减少认知负载<br>• **智能摘要**：根据用户兴趣动态调整展示内容<br>• **交互式探索**：支持论文关联图谱可视化 |
+<table>
+  <thead>
+    <tr>
+      <th style="width: 10%;">子模块</th>
+      <th style="width: 20%;">功能描述</th>
+      <th style="width: 27%;">关键技术点</th>
+      <th style="width: 43%;">近期可落地的改进点</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>ArXiv Fetcher</strong></td>
+      <td>从 arXiv API 获取最新/指定论文元数据</td>
+      <td>
+        - 使用 <code>arxiv</code> Python 包<br>
+        - 支持按关键词、作者、时间范围查询<br>
+        - 自动下载 PDF 到本地缓存目录
+      </td>
+      <td>
+        • <strong>平台扩展</strong>：增加 bioRxiv/medRxiv 支持，及正式发布刊物<br>
+        • <strong>增量同步</strong>：记录最后抓取时间，避免重复拉取<br>
+        • <strong>元数据增强</strong>：提取 DOI、引用数（通过 Semantic Scholar API）<br>
+        • <strong>使用统一查询方法</strong>：可以考虑使用 PaperScrapper 统一查询多个平台的论文
+      </td>
+    </tr>
+    <tr>
+      <td><strong>PDF Parser</strong></td>
+      <td>从 PDF 中提取可读文本</td>
+      <td>
+        - <strong>双后端策略</strong>：<br>
+          &nbsp;&nbsp;• 主路径：Grobid REST API<br>
+          &nbsp;&nbsp;• 备用路径：pdfplumber<br>
+        - <strong>智能缓存</strong>：<br>
+          &nbsp;&nbsp;• Grobid → .xml<br>
+          &nbsp;&nbsp;• pdfplumber → .json
+      </td>
+      <td>
+        • <strong>结构化增强</strong>：提取图表、公式、算法伪代码 <br>
+        • <strong>多模态融合</strong>：整合文本、表格、图表信息 <br>
+        • <strong>段落结构保留</strong>：Grobid 返回 TEI XML 中提取章节标题+段落<br>
+        • <strong>OCR fallback</strong>：对扫描版 PDF 调用 Tesseract（需用户安装）<br>
+        • <strong>错误日志细化</strong>：区分“PDF损坏” vs “Grobid 服务不可用” <br>
+      </td>
+    </tr>
+    <tr>
+      <td><strong>LLM Analyzer</strong></td>
+      <td>调用大模型生成结构化洞察</td>
+      <td>
+        - Jinja2 模板构建 prompt<br>
+        - 支持 Qwen/OpenAI/Ollama<br>
+        - 强制 JSON Schema 输出<br>
+        - 自动截断长文本（≤12k 字符）
+      </td>
+      <td>
+        • <strong>多维度评分</strong>：科学价值(30%) + 实用价值(25%) + 影响力(20%) + 可靠性(15%) + 可读性(10%) <br>
+        • <strong>上下文感知</strong>：根据用户类型动态调整评分权重 <br>
+        • <strong>Chain-of-Thought</strong>：分步骤推理提升分析深度 <br>
+        • <strong>Ensemble评价</strong>：多模型集成降低偏差 <br>
+        • <strong>领域自适应 Prompt</strong>：根据 arXiv 分类（cs.CL / cs.CV）切换提示词<br>
+        • <strong>结果缓存</strong>：对相同 full_text 缓存 LLM 响应（节省 token）<br>
+        • <strong>置信度评分</strong>：让 LLM 自评分析可靠性（如“高/中/低”）
+      </td>
+    </tr>
+    <tr>
+      <td><strong>Cache Manager</strong></td>
+      <td>统一管理各类缓存（PDF、解析结果、LLM 响应）</td>
+      <td>
+        - 所有缓存存放于 <code>./cache/</code><br>
+        - 缓存键含文件指纹确保一致性
+      </td>
+      <td>
+        • <strong>自动清理</strong>：启动时删除 >30 天未访问的缓存<br>
+        • <strong>磁盘用量监控</strong>：显示 cache/ 目录大小，提供“清除缓存”按钮<br>
+        • <strong>缓存命中统计</strong>：日志记录 Grobid/pdfplumber/LLM 缓存命中率
+      </td>
+    </tr>
+    <tr>
+      <td><strong>Web UI (Streamlit)</strong></td>
+      <td>提供交互式分析界面</td>
+      <td>
+        - 动态加载论文卡片<br>
+        - 支持“使用 Grobid”开关<br>
+        - 实时显示 LLM 分析结果
+      </td>
+      <td>
+        • <strong>结果对比视图</strong>：并排显示 Grobid vs pdfplumber 提取效果<br>
+        • <strong>用户反馈入口</strong>：“有用/无用” 按钮收集 LLM 质量反馈<br>
+        • <strong>导出功能</strong>：一键保存分析结果为 Markdown 或 JSON
+      </td>
+    </tr>
+  </tbody>
+</table>
 
 ---
 
@@ -42,13 +127,67 @@
 
 当前系统仅支持 **arXiv**。若要扩展至 **其他预印本平台**（如 bioRxiv, medRxiv, ACL Anthology）或 **正式出版物**（如 IEEE, Springer, Nature），各子模块需做如下改进：
 
-| 子模块 | 当前限制 | 所需改进 | 难度 |
-|--------|--------|--------|------|
-| **ArXiv Fetcher** | 仅调用 arXiv API | - 为每个平台实现独立 fetcher：<br>  • bioRxiv/medRxiv：使用其 REST API<br>  • ACL Anthology：解析 XML 元数据或 scrape HTML<br>  • IEEE/Springer：需处理付费墙（仅限开放获取论文）或集成机构权限<br>- 统一抽象接口 `PaperFetcher` | ⭐⭐ |
-| **PDF Parser** | 假设 PDF 来自 arXiv（LaTeX 生成，文本可选） | - **无需重大修改**！Grobid 和 pdfplumber 对通用学术 PDF 兼容性良好<br>- 但需注意：<br>  • 扫描版 PDF（常见于老期刊）需先 OCR（如 Tesseract）<br>  • 某些出版社 PDF 加密 → 需解密（如 `qpdf --decrypt`） | ⭐ |
-| **LLM Analyzer** | Prompt 针对 arXiv 论文风格优化 | - 微调 prompt 以适应不同领域风格：<br>  • 生物医学论文强调“方法/患者队列”<br>  • 工程类强调“指标/对比 SOTA”<br>- 可引入领域适配器（Domain Adapter） | ⭐ |
-| **Cache Manager** | 缓存键基于本地 PDF 路径 | - 保持不变即可，因最终输入仍是 PDF 文件 | — |
-| **Web UI** | 仅展示 arXiv ID 和分类 | - 增加来源字段（如 “Source: bioRxiv”）<br>- 支持按来源平台筛选 | ⭐ |
+<table>
+  <thead>
+    <tr>
+      <th style="width: 10%;">子模块</th>
+      <th style="width: 20%;">当前限制</th>
+      <th style="width: 60%;">所需改进</th>
+      <th style="width: 10%;">难度</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>ArXiv Fetcher</strong></td>
+      <td>仅调用 arXiv API</td>
+      <td>
+        - 为每个平台实现独立 fetcher：<br>
+          &nbsp;&nbsp;• bioRxiv/medRxiv：使用其 REST API<br>
+          &nbsp;&nbsp;• ACL Anthology：解析 XML 元数据或 scrape HTML<br>
+          &nbsp;&nbsp;• IEEE/Springer：需处理付费墙（仅限开放获取论文）或集成机构权限<br>
+        - 统一抽象接口 <code>PaperFetcher</code>
+      </td>
+      <td>⭐⭐</td>
+    </tr>
+    <tr>
+      <td><strong>PDF Parser</strong></td>
+      <td>假设 PDF 来自 arXiv（LaTeX 生成，文本可选）</td>
+      <td>
+        - <strong>无需重大修改</strong>！Grobid 和 pdfplumber 对通用学术 PDF 兼容性良好<br>
+        - 但需注意：<br>
+          &nbsp;&nbsp;• 扫描版 PDF（常见于老期刊）需先 OCR（如 Tesseract）<br>
+          &nbsp;&nbsp;• 某些出版社 PDF 加密 → 需解密（如 <code>qpdf --decrypt</code>）
+      </td>
+      <td>⭐</td>
+    </tr>
+    <tr>
+      <td><strong>LLM Analyzer</strong></td>
+      <td>Prompt 针对 arXiv 论文风格优化</td>
+      <td>
+        - 微调 prompt 以适应不同领域风格：<br>
+          &nbsp;&nbsp;• 生物医学论文强调“方法/患者队列”<br>
+          &nbsp;&nbsp;• 工程类强调“指标/对比 SOTA”<br>
+        - 可引入领域适配器（Domain Adapter）
+      </td>
+      <td>⭐</td>
+    </tr>
+    <tr>
+      <td><strong>Cache Manager</strong></td>
+      <td>缓存键基于本地 PDF 路径</td>
+      <td>- 保持不变即可，因最终输入仍是 PDF 文件</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td><strong>Web UI</strong></td>
+      <td>仅展示 arXiv ID 和分类</td>
+      <td>
+        - 增加来源字段（如 “Source: bioRxiv”）<br>
+        - 支持按来源平台筛选
+      </td>
+      <td>⭐</td>
+    </tr>
+  </tbody>
+</table>
 
 ### 补充说明
 - **正式期刊的最大挑战**：**PDF 获取**而非解析。多数出版社不提供公开 PDF 下载链接。
@@ -66,7 +205,6 @@
 ## 🚀 快速开始
 
 ```bash
-
 # 1. 启动 Grobid（推荐 Docker）
 docker run -t --rm -p 8070:8070 lfoppiano/grobid:latest-crf
 
