@@ -248,6 +248,10 @@ if st.session_state.analysis_results is not None:
                 st.write(paper["abstract"])
                 st.markdown("**💡 亮点**:")
                 st.write(paper["breakthrough"])
+                st.markdown("### 🌐 译文（Abstract Translation）")
+                st.text(paper.get("translation", "暂无译文"))
+                st.markdown("### 🧠 脑图（Mind Map）")
+                st.markdown(paper.get("mindmap_markdown", "暂无脑图"))
 
             with col2:
                 st.metric("创新性", paper.get("innovation", 0))

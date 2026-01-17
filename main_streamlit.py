@@ -1,10 +1,16 @@
 # main_streamlit.py
+from ast import Dict
 import os
 from exporter import export_to_csv, export_to_json
 from fetcher import fetch_papers
 from parser import PDFParser
 from filter import filter_papers
-from evaluator import llm_evaluate, extract_breakthrough, compute_insight_score, load_prompt
+from evaluator import (
+    cache_evaluation, call_llm, llm_evaluate, extract_breakthrough,
+    compute_insight_score, load_cached_evaluation, load_prompt,
+    translate_abstract,    # ← 新增
+    generate_mindmap       # ← 新增
+)
 from reporter import generate_report
 from author_fetcher import enrich_paper_with_authors
 from utils import download_pdf
@@ -25,7 +31,7 @@ def streaming_run_analysis(config: dict):
         days=query["time_window_days"]
     )
     papers = filter_papers(papers, query["keywords"])
-    #papers = papers[:min(15, len(papers))]  # 控制最大数量
+    papers = papers[:min(6, len(papers))]  # 控制最大数量
 
     total_papers = len(papers)
 
@@ -68,6 +74,9 @@ def streaming_run_analysis(config: dict):
                 full_text = parsed["full_text"]
                 eval_result = llm_evaluate(paper_id, full_text, prompt_tmpl, llm_cfg)
                 insight = extract_breakthrough(paper_id, paper["summary"], full_text, llm_cfg)
+                # 新增：译文 + 脑图
+                translation = translate_abstract(paper_id, paper["summary"], llm_cfg)
+                mindmap = generate_mindmap(paper_id, full_text, llm_cfg)
 
             # 计算加权分
             insight_bonus = compute_insight_score(insight["breakthrough"], insight["language"])
@@ -79,6 +88,8 @@ def streaming_run_analysis(config: dict):
                 "language": insight["language"],
                 "insight_bonus": round(insight_bonus, 2),
                 "final_score": round(final_score, 2),
+                "translation": translation,          # ← 新增
+                "mindmap_markdown": mindmap,         # ← 新增
                 **eval_result
             })
 
@@ -145,12 +156,18 @@ def run_analysis(config: dict):
         insight_bonus = compute_insight_score(insight["breakthrough"], insight["language"])
         final_score = eval_result["total_score"] + insight_bonus
 
+        # 新增：译文 + 脑图
+        translation = translate_abstract(paper_id, paper["summary"], llm_cfg)
+        mindmap = generate_mindmap(paper_id, full_text, llm_cfg)
+
         paper.update({
             "abstract": insight["abstract"],
             "breakthrough": insight["breakthrough"],
             "language": insight["language"],
             "insight_bonus": round(insight_bonus, 2),
             "final_score": round(final_score, 2),
+            "translation": translation,          # ← 新增
+            "mindmap_markdown": mindmap,         # ← 新增
             **eval_result
         })
 
