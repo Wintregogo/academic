@@ -84,13 +84,16 @@ CREATE TABLE paper_categories (
 -- ======================
 CREATE TABLE institutions (
     id SERIAL PRIMARY KEY,
-    name TEXT NOT NULL,                              -- 标准名称
-    ror_id TEXT UNIQUE,                              -- Research Organization Registry ID
-    country TEXT,
-    type TEXT,                                       -- 'education', 'company', etc.
-    aliases TEXT[],                                  -- ['THU', 'Tsinghua Univ']
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    UNIQUE(name)
+    ror_id VARCHAR(50) UNIQUE,        -- 如 "https://ror.org/038sjwq74"
+    name TEXT NOT NULL,               -- 标准名称（英文）
+    name_zh TEXT,                     -- 中文名（可选，后期补充）
+    country_code CHAR(2),             -- ISO 3166-1 alpha-2
+    types TEXT[],                     -- ["Education", "Facility"]
+    aliases TEXT[],                   -- 别名列表
+    acronyms TEXT[],
+    status VARCHAR(20) DEFAULT 'active', -- active / inactive / merged
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
 );
 
 -- ======================
@@ -166,6 +169,9 @@ CREATE INDEX idx_paper_categories_category ON paper_categories (category_id);
 CREATE INDEX idx_authors_name ON authors (name);
 CREATE INDEX idx_institutions_ror ON institutions (ror_id);
 CREATE INDEX idx_author_affiliations_author ON author_affiliations (author_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_institutions_ror_id ON institutions(ror_id);
+CREATE INDEX IF NOT EXISTS idx_institutions_name ON institutions(name);
+CREATE INDEX IF NOT EXISTS idx_institutions_country ON institutions(country_code);
 CREATE INDEX idx_paper_authors_paper ON paper_authors (paper_id);
 CREATE INDEX idx_paper_authors_author ON paper_authors (author_id);
 -- 确保每篇论文最多只有一个主分类

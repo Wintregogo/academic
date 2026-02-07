@@ -43,7 +43,7 @@ def connect_to_db(db_config: dict):
         sys.exit(1)
 
 
-def apply_schema(conn, schema_file: str = "../storage/schema.sql"):
+def apply_schema(conn, schema_file: str = "../../storage/schema.sql"):
     """执行 schema.sql 文件"""
     if not os.path.exists(schema_file):
         print(f"❌ schema 文件未找到: {schema_file}", file=sys.stderr)

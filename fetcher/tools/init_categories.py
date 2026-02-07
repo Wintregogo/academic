@@ -535,7 +535,7 @@ MEDRXIV_CATEGORIES_I18N = {
 # 工具函数
 # ======================
 
-def load_config(config_path: str = "../config.yaml") -> dict:
+def load_config(config_path: str = "../../config.yaml") -> dict:
     if not os.path.exists(config_path):
         print(f"❌ 配置文件未找到: {config_path}", file=sys.stderr)
         sys.exit(1)
