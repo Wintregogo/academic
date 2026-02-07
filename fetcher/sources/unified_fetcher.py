@@ -2,18 +2,37 @@ from datetime import date
 from typing import List, Dict
 import logging
 from datetime import date, datetime, timezone
-import sys
-import os
-from arxiv_fetcher import get_new_primary_papers_from_arxiv
-from biorxiv_fetcher import get_new_primary_papers_from_biorxiv
-from medrxiv_fetcher import get_new_primary_papers_from_medrxiv
-
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from utils.dedup import deduplicate_papers
+from fetcher.sources.arxiv_fetcher import get_new_primary_papers_from_arxiv
+from fetcher.sources.biorxiv_fetcher import get_new_primary_papers_from_biorxiv
+from fetcher.sources.medrxiv_fetcher import get_new_primary_papers_from_medrxiv
+from fetcher.utils.dedup import deduplicate_papers
+from fetcher.utils.fetcher_utils import compute_content_hash, extract_keywords
 
 logger = logging.getLogger(__name__)
 
-def fetch_unified_daily(target_date: date, db_cur) -> List[Dict]:
+def fetch_unified_daily(target_date: date, db_conn) -> List[Dict]:
+    with db_conn.cursor() as db_cur:
+        papers = _fetch_unified_daily(target_date, db_cur)
+
+    papers = _enrich_papers(papers)
+    return papers
+
+def _enrich_papers(papers: list):
+    for paper in papers:
+        hash256 = compute_content_hash(paper['title'], paper.get('abstract', ''))
+        keywords = extract_keywords(paper.get('abstract', ''))
+
+        paper.update({
+            'hash_sha256': hash256,
+            'keywords': keywords,
+            'title_i18n': '',   # 后续处理，异步翻译服务
+            'abstract_i18n': '' # 用户触发翻译
+        })
+
+    return papers
+
+
+def _fetch_unified_daily(target_date: date, db_cur) -> List[Dict]:
     all_papers = []
 
     logger.info("Fetching papers:")
@@ -34,6 +53,7 @@ def fetch_unified_daily(target_date: date, db_cur) -> List[Dict]:
     # 去重（基于内容）
     unique_papers = deduplicate_papers(all_papers, threshold=0.85)
     return unique_papers
+
 
 if __name__ == "__main__":
     import sys
@@ -63,6 +83,7 @@ if __name__ == "__main__":
             print(f"{i+1}. DOI: {p['paper_id']}")
             print(f"    Title: {p['title'][:100]}...")
             print(f"    PDF: {p['pdf_url']}\n")
+            print(p)
     finally:
         cur.close()
         conn.close()

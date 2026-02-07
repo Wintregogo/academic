@@ -75,6 +75,30 @@ def serialize_entry(entry) -> dict:
     return raw
 
 
+def parse_authors_arxiv(entry) -> list:
+    authors = []
+    for author in entry.get("authors", []):
+        name = author.get("name", "").strip()
+        affil = ""
+        # 如果你的 entry 包含 affiliation（如从 XML 解析）
+        if "affiliation" in author:
+            affil = author["affiliation"].strip()
+        authors.append({
+            "name": name,
+            "affiliation": affil,
+            "orcid": ""  # arXiv 不提供 ORCID
+        })
+    return authors
+
+
+def extract_arxiv_version(paper_id: str) -> str:
+    """从 arXiv ID 提取版本，如 'arXiv:2405.12345v2' → 'v2'"""
+    match = re.search(r'v(\d+)$', paper_id)
+    if match:
+        return f"v{match.group(1)}"
+    return "v1"  # 默认 v1
+
+
 def fetch_arxiv_daily(target_date: date) -> list:
     """
     获取 arXiv 上某一天新提交的所有论文元数据，适配 papers 表结构
@@ -139,9 +163,11 @@ def fetch_arxiv_daily(target_date: date) -> list:
 
                 all_papers.append({
                     "paper_id": paper_id,
+                    "version": extract_arxiv_version(entry["id"]),
                     "source": "arxiv",
                     "title": title,
                     "abstract": abstract,
+                    "authors": parse_authors_arxiv(entry),
                     "pdf_url": pdf_url,
                     "published_at": published,
                     "updated_at": updated_at,

@@ -2,10 +2,21 @@ import requests
 from datetime import date, datetime, timezone
 import logging
 import time
+import hashlib
+import re
+from collections import Counter
 
 logger = logging.getLogger(__name__)
 
 API_BASE_URL = "https://api.biorxiv.org/details"
+
+
+def parse_authors_biorxiv(author_str: str) -> list:
+    if not author_str:
+        return []
+    names = [name.strip() for name in author_str.split(";")]
+    return [{"name": name, "affiliation": "", "orcid": ""} for name in names]
+
 
 def fetch_bio_med_preprints(source: str, target_date: date) -> list:
     """
@@ -59,6 +70,8 @@ def fetch_bio_med_preprints(source: str, target_date: date) -> list:
                     "source": source,
                     "title": item.get("title", "").strip(),
                     "abstract": item.get("abstract", "").strip(),
+                    "authors": parse_authors_biorxiv(item.get("authors", "")),
+                    "version": str(item.get("version", "")).strip() or None,
                     "pdf_url": pdf_url,
                     "published_at": pub_dt,
                     "updated_at": pub_dt,
@@ -77,7 +90,7 @@ def fetch_bio_med_preprints(source: str, target_date: date) -> list:
                 logger.warning(f"Invalid count/total from API: count={count_str}, total={total_str}")
                 count = 0
                 total = 0
-                
+
             logger.debug(f"Fetched {count} papers (total: {total}) from {source}")
 
             if count < 100 or cursor * 100 >= total:
@@ -91,3 +104,28 @@ def fetch_bio_med_preprints(source: str, target_date: date) -> list:
             break
 
     return all_papers
+
+
+def compute_content_hash(title: str, abstract: str) -> str:
+    """基于标题+摘要生成稳定哈希（忽略大小写和空白）"""
+    content = (title or "") + "\n" + (abstract or "")
+    normalized = " ".join(content.lower().split())  # 标准化空白
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+
+    
+def extract_keywords(text: str, top_k=8) -> list:
+    """从文本中提取高频实词作为关键词"""
+    if not text:
+        return []
+    
+    # 简单清洗
+    text = re.sub(r"[^a-zA-Z\s]", " ", text)
+    words = text.lower().split()
+    
+    # 过滤停用词（简化版）
+    stop_words = {"the", "and", "or", "but", "in", "on", "at", "to", "for", "of", "with", "by", "a", "an", "as", "is", "are", "was", "were"}
+    filtered = [w for w in words if len(w) > 2 and w not in stop_words]
+    
+    # 取高频词
+    counter = Counter(filtered)
+    return [word for word, _ in counter.most_common(top_k)]    

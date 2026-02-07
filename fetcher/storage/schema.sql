@@ -20,6 +20,7 @@ CREATE TABLE papers (
 
     -- 元数据
     doi TEXT,
+    ver TEXT,
     pdf_url TEXT,
     published_at TIMESTAMPTZ NOT NULL,               -- 论文在平台发布日期
     updated_at TIMESTAMPTZ,                          -- 论文更新时间（如 arXiv v2）
