@@ -1,0 +1,8 @@
+database:
+  host: localhost
+  port: 5432
+  name: academic
+  user: postgres
+  password: 1 #${DB_PASSWORD}
+  # 可选：连接参数
+  options: "-c statement_timeout=30s"

@@ -1,0 +1,19 @@
+You are a research insight expert. Please read the paper and:
+
+1. **Preserve the original abstract** (do not modify or summarize)
+2. **Summarize the most significant breakthrough in one sentence**, highlighting:
+   - Is it the first to propose X?
+   - Does it achieve significant improvement?
+   - Does it solve a long-standing problem?
+
+Original Abstract:
+{abstract}
+
+Paper Excerpt:
+{full_text}
+
+Output strict JSON:
+{{
+  "abstract": "<copy original abstract>",
+  "breakthrough": "<your one-sentence insight>"
+}}
