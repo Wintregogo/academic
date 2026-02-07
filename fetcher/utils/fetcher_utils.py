@@ -67,8 +67,17 @@ def fetch_bio_med_preprints(source: str, target_date: date) -> list:
 
             # 分页控制
             messages = data.get("messages", [{}])[0]
-            count = messages.get("count", 0)
-            total = messages.get("total", 0)
+            count_str = messages.get("count", "0")
+            total_str = messages.get("total", "0")
+
+            try:
+                count = int(count_str)
+                total = int(total_str)
+            except (ValueError, TypeError):
+                logger.warning(f"Invalid count/total from API: count={count_str}, total={total_str}")
+                count = 0
+                total = 0
+                
             logger.debug(f"Fetched {count} papers (total: {total}) from {source}")
 
             if count < 100 or cursor * 100 >= total:

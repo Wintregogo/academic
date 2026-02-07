@@ -8,7 +8,6 @@ import logging
 import json
 import sys
 import os
-from ..utils.fetcher_utils import fetch_bio_med_preprints
 
 logger = logging.getLogger(__name__)
 

@@ -36,7 +36,7 @@ CREATE TABLE papers (
 
     -- 去重与主从关系
     is_primary BOOLEAN NOT NULL DEFAULT FALSE,
-    primary_paper_id INTEGER REFERENCES papers(id) ON DELETE SET NULL,
+    primary_paper_id TEXT,
 
     -- 内容哈希（用于跨平台去重）
     hash_sha256 TEXT,
