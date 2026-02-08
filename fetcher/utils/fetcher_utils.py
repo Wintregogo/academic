@@ -1,3 +1,4 @@
+import os
 import requests
 from datetime import date, datetime, timezone
 import logging
@@ -7,6 +8,8 @@ import re
 import traceback
 from collections import Counter
 from typing import List, Dict, Optional, Any
+from fetcher.storage.db import is_paper_exists
+from fetcher.utils.dedup import deduplicate_papers_in_batch
 
 
 logger = logging.getLogger(__name__)
@@ -14,7 +17,7 @@ logger = logging.getLogger(__name__)
 API_BASE_URL = "https://api.biorxiv.org/details"
 
 
-def parse_authors_biorxiv(author_str: str) -> list:
+def parse_authors_bio_med_rxiv(author_str: str) -> list:
     if not author_str:
         return []
     names = [name.strip() for name in author_str.split(";")]
@@ -68,18 +71,19 @@ def fetch_bio_med_preprints(source: str, target_date: date) -> list:
                 except (ValueError, KeyError):
                     pub_dt = datetime.combine(target_date, datetime.min.time()).replace(tzinfo=timezone.utc)
 
-                all_papers.append({
+                paper = {
                     "paper_id": doi,
                     "source": source,
                     "title": item.get("title", "").strip(),
                     "abstract": item.get("abstract", "").strip(),
-                    "authors": parse_authors_biorxiv(item.get("authors", "")),
+                    "authors": parse_authors_bio_med_rxiv(item.get("authors", "")),
                     "version": str(item.get("version", "")).strip() or None,
                     "pdf_url": pdf_url,
                     "published_at": pub_dt,
                     "updated_at": pub_dt,
                     "raw_metadata": item,
-                })
+                }                
+                all_papers.append(paper)
 
             # 分页控制
             messages = data.get("messages", [{}])[0]
@@ -106,8 +110,9 @@ def fetch_bio_med_preprints(source: str, target_date: date) -> list:
             logger.error(f"Error fetching {source} API: {e}")
             traceback.print_exc()
             break
-
-    return all_papers
+    
+    unique_papers = deduplicate_papers_in_batch(all_papers)
+    return unique_papers
 
 
 def compute_content_hash(title: str, abstract: str) -> str:
@@ -141,6 +146,7 @@ def normalize_orcid(orcid_url: Optional[str]) -> Optional[str]:
 
     return orcid_url.replace("https://orcid.org/", "").strip()
 
+
 def get_openalex_work_id(paper: dict) -> Optional[str]:
     pid = paper["paper_id"]
     source = paper['source']
@@ -150,16 +156,18 @@ def get_openalex_work_id(paper: dict) -> Optional[str]:
         return f"https://doi.org/{pid}"
     return None
 
+
 def get_safe_string(d: dict, name: str):
     value = d.get(name, "")
     value = value if value and type(value)==str else ""
     return value
 
+
 def fetch_enriched_authors_from_openalex(paper: dict) -> List[Dict[str, Any]]:
     """返回结构化作者列表，包含完整机构和位置信息"""
     work_id = get_openalex_work_id(paper)
     if not work_id:
-        return paper
+        return
 
     logger.info(f"Fetching author/institute information for {work_id} with OpenAlex")
     url = f"https://api.openalex.org/works/{work_id}"
@@ -167,7 +175,7 @@ def fetch_enriched_authors_from_openalex(paper: dict) -> List[Dict[str, Any]]:
         resp = requests.get(url, timeout=10)
         if resp.status_code != 200:
             logger.warning(f"OpenAlex {work_id} → {resp.status_code}")
-            return []
+            return
         
         work = resp.json()
         authors = []
@@ -211,11 +219,11 @@ def fetch_enriched_authors_from_openalex(paper: dict) -> List[Dict[str, Any]]:
                 "raw_affiliations": raw_affils,
                 "institutions": institutions  # 支持多机构
             })
-        return authors
+        paper['authors'] = authors
     except Exception as e:
         logger.error(f"OpenAlex enrich failed for {work_id}: {e}")
         traceback.print_exc()
-        return []
+
 
 def enrich_paper_authors(papers: list):
     if not papers:

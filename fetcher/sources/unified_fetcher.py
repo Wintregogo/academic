@@ -7,12 +7,24 @@ from fetcher.sources.biorxiv_fetcher import get_new_primary_papers_from_biorxiv
 from fetcher.sources.medrxiv_fetcher import get_new_primary_papers_from_medrxiv
 from fetcher.utils.dedup import deduplicate_papers
 from fetcher.utils.fetcher_utils import compute_content_hash, extract_keywords
+from fetcher.storage.db import is_paper_exists
 
 logger = logging.getLogger(__name__)
 
 def fetch_unified_daily(target_date: date, db_conn) -> List[Dict]:
     with db_conn.cursor() as db_cur:
         papers = _fetch_unified_daily(target_date, db_cur)
+
+        for p in papers:
+            (existing_id, local_pdf_path) = is_paper_exists(db_cur, p['paper_id'], p['source'])
+            p.update({
+                "paper_db_id": existing_id,
+                "local_pdf_path": local_pdf_path
+            })
+
+            if local_pdf_path is not None:
+                # Remove old version pdf:
+                os.remove(local_pdf_path)
 
     papers = _enrich_papers(papers)
     return papers
@@ -50,9 +62,7 @@ def _fetch_unified_daily(target_date: date, db_cur) -> List[Dict]:
         except Exception as e:
             logger.error(f"Error fetching {source_name}: {e}")
 
-    # 去重（基于内容）
-    unique_papers = deduplicate_papers(all_papers, threshold=0.85)
-    return unique_papers
+    return all_papers
 
 
 if __name__ == "__main__":

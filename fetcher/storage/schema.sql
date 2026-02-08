@@ -20,7 +20,7 @@ CREATE TABLE papers (
 
     -- 元数据
     doi TEXT,
-    ver TEXT,
+    version TEXT,
     pdf_url TEXT,
     published_at TIMESTAMPTZ NOT NULL,               -- 论文在平台发布日期
     updated_at TIMESTAMPTZ,                          -- 论文更新时间（如 arXiv v2）
@@ -85,7 +85,8 @@ CREATE TABLE paper_categories (
 -- ======================
 CREATE TABLE institutions (
     id SERIAL PRIMARY KEY,
-    ror_id VARCHAR(50) UNIQUE,        -- 如 "https://ror.org/038sjwq74"
+    ror_id TEXT UNIQUE,        -- 如 "https://ror.org/038sjwq74"
+    openalex_id TEXT,
     name TEXT NOT NULL,               -- 标准名称（英文）
     name_zh TEXT,                     -- 中文名（可选，后期补充）
     country_code CHAR(2),             -- ISO 3166-1 alpha-2
@@ -134,6 +135,7 @@ CREATE TABLE paper_authors (
     paper_id INTEGER NOT NULL REFERENCES papers(id) ON DELETE CASCADE,
     author_id INTEGER NOT NULL REFERENCES authors(id) ON DELETE CASCADE,
     author_order INTEGER NOT NULL,                   -- 作者顺序（1=第一作者）
+    author_position TEXT,
     raw_affiliations TEXT[],                         -- 投稿时原始机构字符串
     affiliation_institution_ids INTEGER[],           -- 标准化后的机构ID列表
     PRIMARY KEY (paper_id, author_id),
@@ -193,3 +195,10 @@ CREATE INDEX IF NOT EXISTS idx_papers_published_date ON papers(published_at);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_authors_openalex_id 
 ON authors(openalex_id) 
 WHERE openalex_id IS NOT NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_institutions_openalex_id 
+ON institutions(openalex_id) WHERE openalex_id IS NOT NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_author_affiliations_author_institution_current
+ON author_affiliations (author_id, institution_id)
+WHERE is_current = TRUE;

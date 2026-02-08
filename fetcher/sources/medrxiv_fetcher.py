@@ -50,16 +50,9 @@ def get_new_primary_papers_from_medrxiv(target_date: date, db_cur) -> list:
         return []
 
     unique_papers = deduplicate_papers_in_batch(raw_papers)
-    new_papers = []
-    for p in unique_papers:
-        existing_id = is_paper_exists(db_cur, p['paper_id'], p['source'])
-        if existing_id is None:
-            new_papers.append(p)
-        else:
-            logger.debug(f"Skipping existing medRxiv paper: {p['paper_id']}")
 
-    logger.info(f"medRxiv: {len(new_papers)} new primary papers")
-    return new_papers
+    logger.info(f"medRxiv: {len(unique_papers)} new primary papers")
+    return unique_papers
 
 
 # ===== 测试入口 =====

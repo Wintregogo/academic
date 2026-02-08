@@ -5,6 +5,27 @@ from itertools import combinations
 
 logger = logging.getLogger(__name__)
 
+def deduplicate_papers_in_batch(papers: list) -> list:
+    """
+    在同一批次论文中按 paper_id 去重，保留 updated_at 最新的版本
+    :param papers: 来自 fetch_arxiv_daily 的论文列表
+    :return: 去重后的列表
+    """
+    paper_dict = {}
+    for p in papers:
+        pid = p["paper_id"]
+        if pid not in paper_dict:
+            paper_dict[pid] = p
+        else:
+            # 保留 updated_at 更晚的版本
+            if p["updated_at"] > paper_dict[pid]["updated_at"]:
+                paper_dict[pid] = p
+
+    unique_papers = list(paper_dict.values())
+    logger.info(f"Deduplicated: {len(papers)} → {len(unique_papers)} papers")
+    return unique_papers
+
+
 def normalize_text(text: str) -> str:
     """标准化文本：小写、去标点、去多余空格"""
     if not text:

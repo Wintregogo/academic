@@ -5,6 +5,7 @@ from fetcher.sources.unified_fetcher import fetch_unified_daily
 from fetcher.storage.db import insert_papers
 from utils.db import get_db_connection
 from fetcher.utils.fetcher_utils import enrich_paper_authors
+from fetcher.storage.db import fetch_paper_ids_by_keys, update_authors_info_to_db
 
 import logging
 
@@ -40,12 +41,17 @@ if __name__ == "__main__":
         if papers is not None and len(papers) > 0:  
             # 插入数据库
             logger.info("Inserting into database ...")
-            #insert_papers(papers, conn)
+            insert_papers(papers, conn)
             logger.info("Ingestion complete.")
+
+            # 获取论文的数据库 ID
+            papers = fetch_paper_ids_by_keys(conn, papers)
 
             # 更新作者和所在机构信息
             papers = enrich_paper_authors(papers)
-            print(papers[0])
+            
+            # 将authors / institute / paper-author/institute-author写入数据库
+            update_authors_info_to_db(conn, papers)
         else:
             logger.info('No papers found, exits')
     finally:

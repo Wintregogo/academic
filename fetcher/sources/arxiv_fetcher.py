@@ -8,45 +8,12 @@ import logging
 import json
 import sys
 import os
+from fetcher.storage.db import is_paper_exists
+from fetcher.utils.dedup import deduplicate_papers_in_batch
 
 logger = logging.getLogger(__name__)
 
 ARXIV_API_URL = "http://export.arxiv.org/api/query"
-
-
-# ===== 数据库查重函数 =====
-def is_paper_exists(cur, paper_id: str, source: str) -> int | None:
-    """
-    检查论文是否已存在于数据库
-    :return: 数据库 id（如果存在），否则 None
-    """
-    cur.execute("""
-        SELECT id FROM papers 
-        WHERE paper_id = %s AND source = %s;
-    """, (paper_id, source))
-    row = cur.fetchone()
-    return row['id'] if row else None
-
-
-def deduplicate_papers_in_batch(papers: list) -> list:
-    """
-    在同一批次论文中按 paper_id 去重，保留 updated_at 最新的版本
-    :param papers: 来自 fetch_arxiv_daily 的论文列表
-    :return: 去重后的列表
-    """
-    paper_dict = {}
-    for p in papers:
-        pid = p["paper_id"]
-        if pid not in paper_dict:
-            paper_dict[pid] = p
-        else:
-            # 保留 updated_at 更晚的版本
-            if p["updated_at"] > paper_dict[pid]["updated_at"]:
-                paper_dict[pid] = p
-
-    unique_papers = list(paper_dict.values())
-    logger.info(f"Deduplicated: {len(papers)} → {len(unique_papers)} papers")
-    return unique_papers
 
 
 def clean_text(text: str) -> str:
@@ -219,17 +186,8 @@ def get_new_primary_papers_from_arxiv(target_date: date, db_cur) -> list:
     # Step 2: 批次内去重
     unique_papers = deduplicate_papers_in_batch(raw_papers)
 
-    # Step 3: 过滤掉数据库中已存在的
-    new_papers = []
-    for p in unique_papers:
-        existing_id = is_paper_exists(db_cur, p['paper_id'], p['source'])
-        if existing_id is None:
-            new_papers.append(p)
-        else:
-            logger.debug(f"Skipping existing paper: {p['paper_id']} (DB ID={existing_id})")
-
-    logger.info(f"Final result: {len(new_papers)} new primary papers to process")
-    return new_papers
+    logger.info(f"Final result: {len(unique_papers)} new primary papers to process")
+    return unique_papers
 
 
 # ===== 测试入口（使用高层函数）=====
