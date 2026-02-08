@@ -104,6 +104,7 @@ CREATE TABLE authors (
     id SERIAL PRIMARY KEY,
     name TEXT NOT NULL,                              -- 标准化姓名格式
     orcid TEXT UNIQUE,
+    openalex_id TEXT UNIQUE,
     current_institution_id INTEGER REFERENCES institutions(id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -179,3 +180,16 @@ CREATE INDEX idx_paper_authors_author ON paper_authors (author_id);
 CREATE UNIQUE INDEX idx_paper_categories_primary 
 ON paper_categories (paper_id) 
 WHERE is_primary = TRUE;
+
+-- 加速通过 OpenAlex ID 或 ORCID 查作者（未来可能加 openalex_id）
+CREATE INDEX IF NOT EXISTS idx_authors_orcid ON authors(orcid);
+
+-- 加速按机构查作者
+CREATE INDEX IF NOT EXISTS idx_author_affiliations_institution ON author_affiliations(institution_id);
+
+-- 加速按日期范围查论文
+CREATE INDEX IF NOT EXISTS idx_papers_published_date ON papers(published_at);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_authors_openalex_id 
+ON authors(openalex_id) 
+WHERE openalex_id IS NOT NULL;

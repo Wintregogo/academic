@@ -4,7 +4,10 @@ import logging
 import time
 import hashlib
 import re
+import traceback
 from collections import Counter
+from typing import List, Dict, Optional, Any
+
 
 logger = logging.getLogger(__name__)
 
@@ -101,6 +104,7 @@ def fetch_bio_med_preprints(source: str, target_date: date) -> list:
 
         except Exception as e:
             logger.error(f"Error fetching {source} API: {e}")
+            traceback.print_exc()
             break
 
     return all_papers
@@ -128,4 +132,96 @@ def extract_keywords(text: str, top_k=8) -> list:
     
     # 取高频词
     counter = Counter(filtered)
-    return [word for word, _ in counter.most_common(top_k)]    
+    return [word for word, _ in counter.most_common(top_k)]   
+    
+
+def normalize_orcid(orcid_url: Optional[str]) -> Optional[str]:
+    if not orcid_url:
+        return None
+
+    return orcid_url.replace("https://orcid.org/", "").strip()
+
+def get_openalex_work_id(paper: dict) -> Optional[str]:
+    pid = paper["paper_id"]
+    source = paper['source']
+    if source == 'arxiv':
+        return f'arXiv/{pid}'  # 1234.5678 → arXiv/1234.5678
+    else:
+        return f"https://doi.org/{pid}"
+    return None
+
+def get_safe_string(d: dict, name: str):
+    value = d.get(name, "")
+    value = value if value and type(value)==str else ""
+    return value
+
+def fetch_enriched_authors_from_openalex(paper: dict) -> List[Dict[str, Any]]:
+    """返回结构化作者列表，包含完整机构和位置信息"""
+    work_id = get_openalex_work_id(paper)
+    if not work_id:
+        return paper
+
+    logger.info(f"Fetching author/institute information for {work_id} with OpenAlex")
+    url = f"https://api.openalex.org/works/{work_id}"
+    try:
+        resp = requests.get(url, timeout=10)
+        if resp.status_code != 200:
+            logger.warning(f"OpenAlex {work_id} → {resp.status_code}")
+            return []
+        
+        work = resp.json()
+        authors = []
+        for authorship in work.get("authorships", []):
+            author_data = authorship.get("author")
+            if not author_data:
+                continue
+
+            # === 作者信息 ===
+            openalex_author_id = get_safe_string(author_data, "id").replace("https://openalex.org/", "")
+            display_name = get_safe_string(author_data, "display_name").strip()
+            orcid = normalize_orcid(author_data.get("orcid"))
+
+            # === 作者位置 ===
+            position = authorship.get("author_position")  # "first", "middle", "last"
+
+            # === 原始 affiliation 字符串 ===
+            raw_affils = authorship.get("raw_affiliation_strings", [])
+
+            # === 机构信息（支持多机构，但通常取第一个）===
+            try:
+                institutions = []
+                for inst in authorship.get("institutions", []):
+                    #print(f"lineage:  {inst.get('lineage', [])}")
+                    institutions.append({
+                        "openalex_id": get_safe_string(inst, "id").replace("https://openalex.org/", ""),
+                        "ror_id": inst.get("ror"),  # 可能为 None
+                        "name": inst.get("display_name", "").strip(),
+                        "country_code": inst.get("country_code"),  # e.g., "NO"
+                        "type": inst.get("type"),  # e.g., "education", "government"
+                        "lineage": [x.replace("https://openalex.org/", "") for x in inst.get("lineage", [])]
+                    })
+            except:
+                pass
+
+            authors.append({
+                "openalex_author_id": openalex_author_id,
+                "display_name": display_name,
+                "orcid": orcid,
+                "author_position": position,  # 新增！
+                "raw_affiliations": raw_affils,
+                "institutions": institutions  # 支持多机构
+            })
+        return authors
+    except Exception as e:
+        logger.error(f"OpenAlex enrich failed for {work_id}: {e}")
+        traceback.print_exc()
+        return []
+
+def enrich_paper_authors(papers: list):
+    if not papers:
+        return []
+
+    for paper in papers:
+        fetch_enriched_authors_from_openalex(paper)
+
+    return papers

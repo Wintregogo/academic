@@ -38,8 +38,8 @@ def _fetch_unified_daily(target_date: date, db_cur) -> List[Dict]:
     logger.info("Fetching papers:")
     # Fetch from all sources
     for fetch_func, source_name in [
-        (get_new_primary_papers_from_arxiv, "arxiv"),
-        (get_new_primary_papers_from_biorxiv, "biorxiv"),
+        #(get_new_primary_papers_from_arxiv, "arxiv"),
+        #(get_new_primary_papers_from_biorxiv, "biorxiv"),
         (get_new_primary_papers_from_medrxiv, "medrxiv"),
     ]:
         try:
